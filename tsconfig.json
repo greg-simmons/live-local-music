@@ -19,7 +19,8 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "next-auth": ["./packages/next-auth/index.ts"]
     }
   },
   "include": [
