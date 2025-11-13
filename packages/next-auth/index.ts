@@ -156,26 +156,28 @@ export default function NextAuth<
         })
       : ({ user: { ...sanitizedUser } } as TSession));
 
-    cookies().set(COOKIE_NAME, encodeToken(token as Record<string, unknown>, secret), {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      maxAge,
-      path: "/",
-    });
+    const cookieStore = await cookies();
+
+    cookieStore.set(
+      COOKIE_NAME,
+      encodeToken(token as Record<string, unknown>, secret),
+    );
 
     return session;
   }
 
   async function auth() {
-    const cookie = cookies().get(COOKIE_NAME);
+    const cookieStore = await cookies();           // ✅ await the Promise
+    const cookie = cookieStore.get(COOKIE_NAME);   // ✅ now .get exists
+
     if (!cookie) {
       return null;
     }
 
     const decoded = decodeToken<TToken>(cookie.value, secret);
     if (!decoded) {
-      cookies().delete(COOKIE_NAME);
+      const cookieStore = await cookies();
+      cookieStore.delete(COOKIE_NAME);
       return null;
     }
 
@@ -199,7 +201,8 @@ export default function NextAuth<
   }
 
   async function signOut() {
-    cookies().delete(COOKIE_NAME);
+    const cookieStore = await cookies();
+    cookieStore.delete(COOKIE_NAME);
   }
 
   const handlers = {

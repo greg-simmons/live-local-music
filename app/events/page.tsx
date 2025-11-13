@@ -1,51 +1,134 @@
+import { EventsFilterCard, type FilterFormState } from "./_components/events-filter-card";
+import {
+  createBoundingBox,
+  isWithinBoundingBox,
+  lookupZipCoordinates,
+  normalizeZipCode,
+} from "@/lib/geo";
 import { prisma } from "@/lib/prisma";
 
-function parseSearchNumber(value: string | undefined) {
+const RADIUS_OPTIONS = [5, 10, 25, 50] as const;
+const DATE_FILTERS = [
+  { label: "Tonight", value: "tonight" },
+  { label: "Tomorrow", value: "tomorrow" },
+  { label: "This Weekend", value: "weekend" },
+  { label: "Pick a date", value: "date" },
+] as const;
+
+type DateFilterValue = (typeof DATE_FILTERS)[number]["value"];
+type RadiusOption = (typeof RADIUS_OPTIONS)[number];
+type RawSearchParams = Record<string, string | string[] | undefined>;
+
+const DEFAULT_WHEN: DateFilterValue = "tonight";
+
+type DateRange = {
+  start: Date;
+  end: Date;
+};
+
+const getSingleParam = (params: RawSearchParams, key: string) => {
+  const value = params[key];
+  return typeof value === "string" ? value : undefined;
+};
+
+const isRadiusOption = (value: number): value is RadiusOption =>
+  (RADIUS_OPTIONS as readonly number[]).includes(value);
+
+const parseRadiusParam = (value: string | undefined): RadiusOption | null => {
   if (!value) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && isRadiusOption(parsed) ? parsed : null;
+};
 
-function haversineMiles(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const earthRadiusMiles = 3958.8;
+const parseWhenParam = (value: string | undefined): DateFilterValue =>
+  DATE_FILTERS.some((option) => option.value === value) ? (value as DateFilterValue) : DEFAULT_WHEN;
 
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) *
-      Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return earthRadiusMiles * c;
-}
+const isDateInput = (value: string | undefined) => (value ? /^\d{4}-\d{2}-\d{2}$/.test(value) : false);
 
-function formatDateTime(date: Date, time: Date | null) {
+const startOfUtcDay = (date: Date) => {
+  const copy = new Date(date);
+  copy.setUTCHours(0, 0, 0, 0);
+  return copy;
+};
+
+const addUtcDays = (date: Date, days: number) => {
+  const copy = new Date(date);
+  copy.setUTCDate(copy.getUTCDate() + days);
+  return copy;
+};
+
+const dateStringToUtc = (value: string) => {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+};
+
+const getDateRange = (now: Date, when: DateFilterValue, pickedDate?: string): DateRange | null => {
+  const today = startOfUtcDay(now);
+
+  switch (when) {
+    case "tonight":
+      return { start: today, end: addUtcDays(today, 1) };
+    case "tomorrow": {
+      const tomorrow = addUtcDays(today, 1);
+      return { start: tomorrow, end: addUtcDays(tomorrow, 1) };
+    }
+    case "weekend": {
+      const day = now.getUTCDay();
+      if (day >= 5) {
+        const friday = startOfUtcDay(addUtcDays(today, -(day - 5)));
+        return { start: friday, end: addUtcDays(friday, 3) };
+      }
+      const daysUntilFriday = 5 - day;
+      const friday = addUtcDays(today, daysUntilFriday);
+      return { start: friday, end: addUtcDays(friday, 3) };
+    }
+    case "date":
+      if (!pickedDate) return null;
+      const date = dateStringToUtc(pickedDate);
+      return { start: date, end: addUtcDays(date, 1) };
+    default:
+      return null;
+  }
+};
+
+const formatDateTime = (date: Date, time: Date | null) => {
   const dateFormatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
   const timeFormatter = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
-  return `${dateFormatter.format(date)} · ${time ? timeFormatter.format(time) : "TBD"}`;
-}
+  return `${dateFormatter.format(date)} at ${time ? timeFormatter.format(time) : "TBD"}`;
+};
 
 type EventsPageProps = {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  searchParams: Promise<RawSearchParams>;
 };
 
 export default async function EventsPage({ searchParams }: EventsPageProps) {
   const params = await searchParams;
-  const dateFilter = typeof params.date === "string" && params.date ? params.date : undefined;
-  const radiusParam = parseSearchNumber(typeof params.radius === "string" ? params.radius : undefined);
-  const latitudeParam = parseSearchNumber(typeof params.latitude === "string" ? params.latitude : undefined);
-  const longitudeParam = parseSearchNumber(typeof params.longitude === "string" ? params.longitude : undefined);
+  const now = new Date();
 
-  const where = {
-    isActive: true,
-    ...(dateFilter ? { eventDate: new Date(dateFilter) } : {}),
-  } satisfies Parameters<typeof prisma.event.findMany>[0]["where"];
+  const rawWhenParam = getSingleParam(params, "when");
+  const parsedWhen = parseWhenParam(rawWhenParam);
+  const rawDateParam = getSingleParam(params, "date");
+  const sanitizedDateParam = isDateInput(rawDateParam) ? rawDateParam : "";
+  const shouldForceDefaultWhen = rawWhenParam === "date" && !sanitizedDateParam;
+  const activeWhen: DateFilterValue = shouldForceDefaultWhen ? DEFAULT_WHEN : parsedWhen;
+  const radiusParam = parseRadiusParam(getSingleParam(params, "radius"));
+  const rawZipParam = getSingleParam(params, "zip") ?? "";
+  const normalizedZip = normalizeZipCode(rawZipParam);
+
+  const dateRange = getDateRange(now, activeWhen, activeWhen === "date" ? sanitizedDateParam : undefined);
 
   const events = await prisma.event.findMany({
-    where,
+    where: {
+      isActive: true,
+      ...(dateRange
+        ? {
+            eventDate: {
+              gte: dateRange.start,
+              lt: dateRange.end,
+            },
+          }
+        : {}),
+    },
     include: {
       venue: true,
       artist: true,
@@ -54,103 +137,46 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
     take: 50,
   });
 
-  let filteredEvents = events;
+  const shouldApplyLocation = Boolean(normalizedZip && radiusParam);
+  const location = shouldApplyLocation && normalizedZip ? await lookupZipCoordinates(normalizedZip) : null;
+  const locationError = Boolean(shouldApplyLocation && !location);
+  const boundingBox =
+    shouldApplyLocation && location && radiusParam ? createBoundingBox(location, radiusParam) : null;
 
-  if (
-    radiusParam !== null &&
-    radiusParam !== undefined &&
-    radiusParam > 0 &&
-    latitudeParam !== null &&
-    longitudeParam !== null
-  ) {
-    filteredEvents = events.filter((event) => {
-      const distance = haversineMiles(latitudeParam, longitudeParam, event.venue.latitude, event.venue.longitude);
-      return distance <= radiusParam;
-    });
-  }
+  const filteredEvents = boundingBox
+    ? events.filter((event) =>
+        isWithinBoundingBox(
+          { latitude: event.venue.latitude, longitude: event.venue.longitude },
+          boundingBox,
+        ),
+      )
+    : events;
+
+  const initialFilters: FilterFormState = {
+    zip: rawZipParam,
+    radius: radiusParam ? radiusParam.toString() : "",
+    when: rawWhenParam === "date" && sanitizedDateParam ? "date" : activeWhen,
+    date: rawWhenParam === "date" && sanitizedDateParam ? sanitizedDateParam : "",
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-6 py-12">
       <div className="space-y-3">
         <h1 className="text-3xl font-semibold text-slate-900">Live events</h1>
-        <p className="text-sm text-slate-600">
-          Filter by date and radius to find shows that match your schedule.
-        </p>
+        <p className="text-sm text-slate-600">Dial in by date or your ZIP code to find the right show tonight.</p>
       </div>
-      <form method="get" className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="grid gap-6 md:grid-cols-4">
-          <div className="space-y-2">
-            <label htmlFor="date" className="block text-sm font-medium text-slate-700">
-              Event date
-            </label>
-            <input
-              id="date"
-              name="date"
-              type="date"
-              defaultValue={dateFilter ?? ""}
-              className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
-            />
-          </div>
-          <div className="space-y-2">
-            <label htmlFor="radius" className="block text-sm font-medium text-slate-700">
-              Radius (miles)
-            </label>
-            <input
-              id="radius"
-              name="radius"
-              type="number"
-              min="0"
-              step="1"
-              defaultValue={radiusParam ?? ""}
-              className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
-            />
-          </div>
-          <div className="space-y-2">
-            <label htmlFor="latitude" className="block text-sm font-medium text-slate-700">
-              Latitude
-            </label>
-            <input
-              id="latitude"
-              name="latitude"
-              type="number"
-              step="any"
-              defaultValue={latitudeParam ?? ""}
-              className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
-            />
-          </div>
-          <div className="space-y-2">
-            <label htmlFor="longitude" className="block text-sm font-medium text-slate-700">
-              Longitude
-            </label>
-            <input
-              id="longitude"
-              name="longitude"
-              type="number"
-              step="any"
-              defaultValue={longitudeParam ?? ""}
-              className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
-            />
-          </div>
-        </div>
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-          <button
-            type="submit"
-            className="rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
-          >
-            Apply filters
-          </button>
-          <a
-            href="/events"
-            className="text-sm font-medium text-slate-600 hover:text-slate-900"
-          >
-            Reset
-          </a>
-        </div>
-      </form>
+
+      <EventsFilterCard
+        initialValues={initialFilters}
+        radiusOptions={RADIUS_OPTIONS}
+        dateOptions={DATE_FILTERS}
+        locationError={locationError}
+      />
+
       <section className="grid gap-6 md:grid-cols-2">
         {filteredEvents.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-sm text-slate-600 shadow-sm">
-            No events match the selected filters yet. Try expanding your radius or clearing the date filter.
+            No events match those filters right now. Try clearing the date or widening the radius.
           </div>
         ) : (
           filteredEvents.map((event) => (
@@ -159,11 +185,9 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
               <p className="mt-1 text-sm text-slate-600">{event.description ?? "No description yet."}</p>
               <p className="mt-3 text-sm font-medium text-slate-900">{formatDateTime(event.eventDate, event.eventTime)}</p>
               <p className="text-sm text-slate-600">
-                {event.venue.name} · {event.venue.city}, {event.venue.state}
+                {event.venue.name} - {event.venue.city}, {event.venue.state}
               </p>
-              {event.artist ? (
-                <p className="text-sm text-slate-600">Featuring {event.artist.name}</p>
-              ) : null}
+              {event.artist ? <p className="text-sm text-slate-600">Featuring {event.artist.name}</p> : null}
               {event.coverCharge ? (
                 <p className="text-xs text-slate-500">Cover charge: ${event.coverCharge.toString()}</p>
               ) : null}

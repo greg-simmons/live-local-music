@@ -1,6 +1,7 @@
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { registerVenue } from "./actions";
 import type { VenueRegisterState } from "./actions";
 
@@ -20,7 +21,7 @@ function SubmitButton() {
 }
 
 export function VenueRegisterForm() {
-  const [state, formAction] = useFormState(registerVenue, initialState);
+  const [state, formAction] = useActionState(registerVenue, initialState);
 
   return (
     <form action={formAction} className="space-y-6">

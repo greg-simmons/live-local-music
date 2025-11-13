@@ -1,6 +1,7 @@
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { registerArtist } from "./actions";
 import type { ArtistRegisterState } from "./actions";
 
@@ -20,7 +21,7 @@ function SubmitButton() {
 }
 
 export function ArtistRegisterForm() {
-  const [state, formAction] = useFormState(registerArtist, initialState);
+  const [state, formAction] = useActionState(registerArtist, initialState);
 
   return (
     <form action={formAction} className="space-y-6">

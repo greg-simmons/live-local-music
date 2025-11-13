@@ -1,104 +1,143 @@
 const { PrismaClient, UserRole } = require('@prisma/client')
-const bcrypt = require('bcryptjs')
+const { hash } = require('bcryptjs')
 
 const prisma = new PrismaClient()
 
 async function main() {
-  console.log('🌱 Seeding database...')
+  console.log('Seeding database...')
 
-  const adminPassword = await bcrypt.hash('admin123', 10)
-  const artistPassword = await bcrypt.hash('artist123', 10)
-  const venuePassword = await bcrypt.hash('venue123', 10)
+  const [adminPassword, artistPassword, venuePassword] = await Promise.all([
+    hash('admin123', 10),
+    hash('artist123', 10),
+    hash('venue123', 10),
+  ])
 
-  // --- Admin user ---
-  const admin = await prisma.user.create({
-    data: {
-      email: 'admin@example.com',
-      passwordHash: adminPassword,
-      role: UserRole.admin,
-      isVerified: true,
-    },
-  })
+  const ensureUser = (email, passwordHash, role) =>
+    prisma.user.upsert({
+      where: { email },
+      update: { passwordHash, role, isVerified: true },
+      create: { email, passwordHash, role, isVerified: true },
+    })
 
-  // --- Artist user + artist record ---
-  const artistUser = await prisma.user.create({
-    data: {
-      email: 'artist@example.com',
-      passwordHash: artistPassword,
-      role: UserRole.artist,
-      isVerified: true,
-    },
-  })
+  // admin
+  await ensureUser('admin@example.com', adminPassword, UserRole.admin)
 
-  const artist = await prisma.artist.create({
-    data: {
-      name: 'The Sunset Riders',
-      bio: 'An energetic rock band with surf vibes and coastal charm.',
-      contactName: 'Jake Summers',
-      contactPhone: '+1 555-234-5678',
-      contactEmail: 'jake@sunsetriders.com',
-      website: 'https://sunsetriders.com',
-      user: { connect: { id: artistUser.id } },
-    },
-  })
+  // artist user
+  const artistUser = await ensureUser('artist@example.com', artistPassword, UserRole.artist)
 
-  // link user → artist
+  let artist =
+    artistUser.artistId && (await prisma.artist.findUnique({ where: { id: artistUser.artistId } }))
+
+  if (!artist) {
+    artist =
+      (await prisma.artist.findFirst({
+        where: { contactEmail: 'jake@sunsetriders.com' },
+      })) ||
+      (await prisma.artist.create({
+        data: {
+          name: 'The Sunset Riders',
+          contactName: 'Jake Summers',
+          contactPhone: '+1 555-234-5678',
+          contactEmail: 'jake@sunsetriders.com',
+          bio: 'An energetic rock band with surf vibes.',
+          website: 'https://sunsetriders.com',
+          user: { connect: { id: artistUser.id } },
+        },
+      }))
+  }
+
   await prisma.user.update({
     where: { id: artistUser.id },
     data: { artistId: artist.id },
   })
 
-  // --- Venue user + venue record ---
-  const venueUser = await prisma.user.create({
-    data: {
-      email: 'venue@example.com',
-      passwordHash: venuePassword,
-      role: UserRole.venue,
-      isVerified: true,
-    },
-  })
+  // venue user
+  const venueUser = await ensureUser('venue@example.com', venuePassword, UserRole.venue)
 
-  const venue = await prisma.venue.create({
-    data: {
-      name: 'The Wavehouse Bar',
-      address: '123 Ocean Ave',
-      city: 'Santa Cruz',
-      state: 'CA',
-      zipCode: '95060',
-      latitude: 36.9741,
-      longitude: -122.0308,
-      contactName: 'Samantha Lee',
-      contactPhone: '+1 555-876-5432',
-      contactEmail: 'samantha@wavehousebar.com',
-      description: 'Beachfront venue hosting local music every weekend.',
-      website: 'https://wavehousebar.com',
-      user: { connect: { id: venueUser.id } },
-    },
-  })
+  let venue =
+    venueUser.venueId && (await prisma.venue.findUnique({ where: { id: venueUser.venueId } }))
 
-  // link user → venue
+  if (!venue) {
+    venue =
+      (await prisma.venue.findFirst({
+        where: { contactEmail: 'samantha@wavehousebar.com' },
+      })) ||
+      (await prisma.venue.create({
+        data: {
+          name: 'The Wavehouse Bar',
+          address: '123 Ocean Ave',
+          city: 'Santa Cruz',
+          state: 'CA',
+          zipCode: '95060',
+          latitude: 36.9741,
+          longitude: -122.0308,
+          contactName: 'Samantha Lee',
+          contactPhone: '+1 555-876-5432',
+          contactEmail: 'samantha@wavehousebar.com',
+          description: 'Beachfront venue hosting local music every weekend.',
+          website: 'https://wavehousebar.com',
+          user: { connect: { id: venueUser.id } },
+        },
+      }))
+  }
+
   await prisma.user.update({
     where: { id: venueUser.id },
     data: { venueId: venue.id },
   })
 
-  // --- Genres ---
-  const rock = await prisma.genre.create({
-    data: { name: 'Rock', description: 'Electric guitars and strong rhythms' },
+  // genres
+  const genreNames = [
+    'Acoustic',
+    'Alternative',
+    'Americana',
+    'Bluegrass',
+    'Blues',
+    'Rock',
+    'Indie',
+    'Classic Rock',
+    'Country',
+    'Folk',
+    'Funk',
+    'Hip-Hop / Rap',
+    'Jazz',
+    'Latin',
+    'Metal',
+    'Pop',
+    'Punk',
+    'R&B / Soul',
+    'Reggae',
+    'Singer-Songwriter',
+    'Tribute / Cover Band',
+    'Zydeco',
+    'Southern Rock',
+    'Dance / Party Band',
+  ]
+
+  await prisma.genre.createMany({
+    data: genreNames.map((name) => ({ name })),
+    skipDuplicates: true,
   })
 
-  const indie = await prisma.genre.create({
-    data: { name: 'Indie', description: 'Independent alternative music' },
-  })
+  const [alternativeGenre, classicRockGenre] = await Promise.all(
+    ['Alternative', 'Classic Rock'].map(async (name) => {
+      const genre = await prisma.genre.findUnique({ where: { name } })
+      if (!genre) {
+        throw new Error(`Genre "${name}" not found after seeding.`)
+      }
+      return genre
+    }),
+  )
 
   await prisma.artistGenre.createMany({
     data: [
-      { artistId: artist.id, genreId: rock.id },
-      { artistId: artist.id, genreId: indie.id },
+      { artistId: artist.id, genreId: alternativeGenre.id },
+      { artistId: artist.id, genreId: classicRockGenre.id },
     ],
+    skipDuplicates: true,
   })
 
-  // --- Events ---
+  // events
   await prisma.event.create({
     data: {
       title: 'Sunset Jam at the Wavehouse',
@@ -126,12 +165,12 @@ async function main() {
     },
   })
 
-  console.log('✅ Seed done.')
+  console.log('Seed done.')
 }
 
 main()
-  .catch((e) => {
-    console.error(e)
+  .catch((error) => {
+    console.error(error)
     process.exit(1)
   })
   .finally(async () => {
