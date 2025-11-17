@@ -5,14 +5,14 @@ import { hashPassword } from "@/lib/password";
 import { signIn } from "@/lib/auth";
 import type { AppSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { geocodeAddress } from "@/lib/geocoding";
 
 type VenueRegisterState = {
   error?: string;
 };
 
-function parseNumber(value: string) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
+function formatPhone(value: string) {
+  return value.replace(/[^0-9+]/g, "");
 }
 
 export async function registerVenue(prevState: VenueRegisterState | undefined, formData: FormData) {
@@ -21,13 +21,15 @@ export async function registerVenue(prevState: VenueRegisterState | undefined, f
   const password = String(formData.get("password") ?? "");
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
   const contactName = String(formData.get("contactName") ?? "").trim();
-  const contactPhone = String(formData.get("contactPhone") ?? "").replace(/[^0-9+]/g, "");
+  const contactPhone = formatPhone(String(formData.get("contactPhone") ?? ""));
+  const venuePhone = formatPhone(String(formData.get("venuePhone") ?? ""));
+  const website = String(formData.get("website") ?? "").trim();
+  const profileImageUrl = String(formData.get("profileImageUrl") ?? "").trim();
+  const allowsSmoking = formData.get("allowsSmoking") === "on";
   const address = String(formData.get("address") ?? "").trim();
   const city = String(formData.get("city") ?? "").trim();
   const state = String(formData.get("state") ?? "").trim().toUpperCase();
   const zipCode = String(formData.get("zipCode") ?? "").trim();
-  const latitude = parseNumber(String(formData.get("latitude") ?? ""));
-  const longitude = parseNumber(String(formData.get("longitude") ?? ""));
   const description = String(formData.get("description") ?? "").trim() || null;
 
   if (!name || !email || !password || !contactName || !contactPhone || !address || !city || !state || !zipCode) {
@@ -42,16 +44,18 @@ export async function registerVenue(prevState: VenueRegisterState | undefined, f
     return { error: "Passwords do not match." } satisfies VenueRegisterState;
   }
 
-  if (latitude === null || longitude === null) {
-    return { error: "Enter the venue latitude and longitude." } satisfies VenueRegisterState;
-  }
-
   const existingUser = await prisma.user.findUnique({ where: { email } });
   if (existingUser) {
     return { error: "An account with this email already exists." } satisfies VenueRegisterState;
   }
 
+  const coordinates = await geocodeAddress(address, city, state, zipCode);
+  if (!coordinates) {
+    return { error: "We couldn't verify that address. Please confirm it and try again." } satisfies VenueRegisterState;
+  }
+
   const passwordHash = await hashPassword(password);
+  const { latitude, longitude } = coordinates;
 
   await prisma.$transaction(async (tx) => {
     const venue = await tx.venue.create({
@@ -60,6 +64,10 @@ export async function registerVenue(prevState: VenueRegisterState | undefined, f
         contactName,
         contactPhone,
         contactEmail: email,
+        phone: venuePhone || null,
+        website: website || null,
+        profileImageUrl: profileImageUrl || null,
+        allowsSmoking,
         address,
         city,
         state,

@@ -33,6 +33,7 @@ export function VenueRegisterForm() {
           <input
             id="name"
             name="name"
+            autoComplete="organization"
             required
             className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
           />
@@ -87,6 +88,7 @@ export function VenueRegisterForm() {
           <input
             id="contactName"
             name="contactName"
+            autoComplete="name"
             required
             className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
           />
@@ -98,7 +100,60 @@ export function VenueRegisterForm() {
           <input
             id="contactPhone"
             name="contactPhone"
+            type="tel"
+            autoComplete="tel"
             required
+            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+          />
+        </div>
+      </div>
+      <div className="grid gap-6 md:grid-cols-2">
+        <div className="space-y-2">
+          <label htmlFor="venuePhone" className="block text-sm font-medium text-slate-700">
+            Venue phone (public)
+          </label>
+          <input
+            id="venuePhone"
+            name="venuePhone"
+            type="tel"
+            autoComplete="tel"
+            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+          />
+        </div>
+        <div className="space-y-2">
+          <label htmlFor="website" className="block text-sm font-medium text-slate-700">
+            Website
+          </label>
+          <input
+            id="website"
+            name="website"
+            type="url"
+            autoComplete="url"
+            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+          />
+        </div>
+      </div>
+      <div className="grid gap-6 md:grid-cols-2">
+        <div className="space-y-2">
+          <label htmlFor="profileImageUrl" className="block text-sm font-medium text-slate-700">
+            Profile image URL
+          </label>
+          <input
+            id="profileImageUrl"
+            name="profileImageUrl"
+            type="url"
+            placeholder="https://..."
+            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+          />
+        </div>
+        <div className="space-y-2">
+          <label htmlFor="description" className="block text-sm font-medium text-slate-700">
+            Short description (optional)
+          </label>
+          <textarea
+            id="description"
+            name="description"
+            rows={3}
             className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
           />
         </div>
@@ -111,6 +166,7 @@ export function VenueRegisterForm() {
           <input
             id="address"
             name="address"
+            autoComplete="street-address"
             required
             className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
           />
@@ -122,6 +178,7 @@ export function VenueRegisterForm() {
           <input
             id="city"
             name="city"
+            autoComplete="address-level2"
             required
             className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
           />
@@ -136,8 +193,9 @@ export function VenueRegisterForm() {
             id="state"
             name="state"
             maxLength={2}
+            autoComplete="address-level1"
             required
-            className="w-full uppercase tracking-[0.2em] rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm uppercase tracking-[0.2em] text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
           />
         </div>
         <div className="space-y-2">
@@ -147,47 +205,22 @@ export function VenueRegisterForm() {
           <input
             id="zipCode"
             name="zipCode"
+            autoComplete="postal-code"
             required
             className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
           />
         </div>
         <div className="space-y-2">
-          <label htmlFor="description" className="block text-sm font-medium text-slate-700">
-            Short description (optional)
+          <span className="block text-sm font-medium text-slate-700">Allows smoking</span>
+          <label className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700 shadow-sm">
+            <input
+              type="checkbox"
+              id="allowsSmoking"
+              name="allowsSmoking"
+              className="h-5 w-5 rounded border-slate-400 text-slate-900 accent-slate-900 focus:ring-slate-500"
+            />
+            <span>Check if guests are allowed to smoke inside the venue.</span>
           </label>
-          <input
-            id="description"
-            name="description"
-            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
-          />
-        </div>
-      </div>
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="space-y-2">
-          <label htmlFor="latitude" className="block text-sm font-medium text-slate-700">
-            Latitude
-          </label>
-          <input
-            id="latitude"
-            name="latitude"
-            type="number"
-            step="any"
-            required
-            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
-          />
-        </div>
-        <div className="space-y-2">
-          <label htmlFor="longitude" className="block text-sm font-medium text-slate-700">
-            Longitude
-          </label>
-          <input
-            id="longitude"
-            name="longitude"
-            type="number"
-            step="any"
-            required
-            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
-          />
         </div>
       </div>
       {state?.error ? <p className="text-sm font-medium text-rose-600">{state.error}</p> : null}
