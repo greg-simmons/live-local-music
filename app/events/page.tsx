@@ -181,6 +181,13 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
         ) : (
           filteredEvents.map((event) => (
             <article key={event.id} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              {event.venue.profileImageUrl ? (
+                <img
+                  src={event.venue.profileImageUrl}
+                  alt={event.venue.name}
+                  className="mb-4 h-40 w-full rounded-2xl object-cover"
+                />
+              ) : null}
               <h2 className="text-xl font-semibold text-slate-900">{event.title ?? "Untitled event"}</h2>
               <p className="mt-1 text-sm text-slate-600">{event.description ?? "No description yet."}</p>
               <p className="mt-3 text-sm font-medium text-slate-900">{formatDateTime(event.eventDate, event.eventTime)}</p>

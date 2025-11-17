@@ -44,7 +44,7 @@ export default async function AdminDashboardPage() {
       take: 5,
       include: {
         venue: {
-          select: { name: true, city: true, state: true },
+          select: { name: true, city: true, state: true, profileImageUrl: true },
         },
         artist: {
           select: { name: true },
@@ -104,6 +104,13 @@ export default async function AdminDashboardPage() {
             ) : (
               upcomingEvents.map((event) => (
                 <li key={event.id} className="rounded-2xl border border-slate-200 p-4">
+                  {event.venue.profileImageUrl ? (
+                    <img
+                      src={event.venue.profileImageUrl}
+                      alt={event.venue.name}
+                      className="mb-3 h-32 w-full rounded-2xl object-cover"
+                    />
+                  ) : null}
                   <p className="text-sm font-semibold text-slate-900">{event.title ?? "Untitled event"}</p>
                   <p className="text-xs text-slate-500">
                     {formatDateTime(event.eventDate, event.eventTime)}

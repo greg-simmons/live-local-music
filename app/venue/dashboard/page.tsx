@@ -74,7 +74,10 @@ export default async function VenueDashboardPage() {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-12">
       <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-4">
+          {venue.profileImageUrl ? (
+            <img src={venue.profileImageUrl} alt={venue.name} className="h-48 w-full rounded-2xl object-cover" />
+          ) : null}
           <p className="text-sm uppercase tracking-wide text-slate-500">Venue dashboard</p>
           <h1 className="text-3xl font-semibold text-slate-900">{venue.name}</h1>
           {venue.description ? <p className="text-sm text-slate-600">{venue.description}</p> : null}

@@ -1,11 +1,14 @@
 "use server";
 
+import { Buffer } from "node:buffer";
+
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
 import { signIn } from "@/lib/auth";
 import type { AppSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { geocodeAddress } from "@/lib/geocoding";
+import { supabaseServerClient } from "@/lib/supabaseServer";
 
 type VenueRegisterState = {
   error?: string;
@@ -13,6 +16,14 @@ type VenueRegisterState = {
 
 function formatPhone(value: string) {
   return value.replace(/[^0-9+]/g, "");
+}
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
 }
 
 export async function registerVenue(prevState: VenueRegisterState | undefined, formData: FormData) {
@@ -24,13 +35,14 @@ export async function registerVenue(prevState: VenueRegisterState | undefined, f
   const contactPhone = formatPhone(String(formData.get("contactPhone") ?? ""));
   const venuePhone = formatPhone(String(formData.get("venuePhone") ?? ""));
   const website = String(formData.get("website") ?? "").trim();
-  const profileImageUrl = String(formData.get("profileImageUrl") ?? "").trim();
+  const profileImageFile = formData.get("profileImage") as File | null;
   const allowsSmoking = formData.get("allowsSmoking") === "on";
   const address = String(formData.get("address") ?? "").trim();
   const city = String(formData.get("city") ?? "").trim();
   const state = String(formData.get("state") ?? "").trim().toUpperCase();
   const zipCode = String(formData.get("zipCode") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim() || null;
+  let profileImageUrl: string | null = null;
 
   if (!name || !email || !password || !contactName || !contactPhone || !address || !city || !state || !zipCode) {
     return { error: "Please complete all required fields." } satisfies VenueRegisterState;
@@ -42,6 +54,30 @@ export async function registerVenue(prevState: VenueRegisterState | undefined, f
 
   if (password !== confirmPassword) {
     return { error: "Passwords do not match." } satisfies VenueRegisterState;
+  }
+
+  if (profileImageFile && profileImageFile.size > 0) {
+    const arrayBuffer = await profileImageFile.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const type = profileImageFile.type || "image/jpeg";
+    const extension = type.split("/")[1] || "jpg";
+    const safeName = slugify(name) || "venue";
+    const fileName = `venues/${Date.now()}-${safeName}.${extension}`;
+
+    const uploadResult = await supabaseServerClient.storage
+      .from("venue-profile-images")
+      .upload(fileName, buffer, {
+        contentType: type,
+        upsert: false,
+      });
+
+    if (uploadResult.error) {
+      console.error("Venue image upload failed", uploadResult.error);
+      return { error: "Image upload failed. Please try again." } satisfies VenueRegisterState;
+    }
+
+    const { data: publicUrlData } = supabaseServerClient.storage.from("venue-profile-images").getPublicUrl(fileName);
+    profileImageUrl = publicUrlData?.publicUrl ?? null;
   }
 
   const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -66,7 +102,7 @@ export async function registerVenue(prevState: VenueRegisterState | undefined, f
         contactEmail: email,
         phone: venuePhone || null,
         website: website || null,
-        profileImageUrl: profileImageUrl || null,
+        profileImageUrl,
         allowsSmoking,
         address,
         city,

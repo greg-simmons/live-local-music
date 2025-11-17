@@ -24,7 +24,7 @@ export function VenueRegisterForm() {
   const [state, formAction] = useActionState(registerVenue, initialState);
 
   return (
-    <form action={formAction} className="space-y-6">
+    <form action={formAction} encType="multipart/form-data" className="space-y-6">
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-2">
           <label htmlFor="name" className="block text-sm font-medium text-slate-700">
@@ -135,15 +135,15 @@ export function VenueRegisterForm() {
       </div>
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-2">
-          <label htmlFor="profileImageUrl" className="block text-sm font-medium text-slate-700">
-            Profile image URL
+          <label htmlFor="profile-image" className="block text-sm font-medium text-slate-700">
+            Profile image
           </label>
           <input
-            id="profileImageUrl"
-            name="profileImageUrl"
-            type="url"
-            placeholder="https://..."
-            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            id="profile-image"
+            name="profileImage"
+            type="file"
+            accept="image/*"
+            className="w-full rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900 shadow-sm file:mr-4 file:rounded-full file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:border-slate-400 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
           />
         </div>
         <div className="space-y-2">
