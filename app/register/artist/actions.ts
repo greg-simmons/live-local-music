@@ -9,8 +9,11 @@ import type { AppSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { supabaseServerClient } from "@/lib/supabaseServer";
 
-type ArtistRegisterState = {
-  error?: string;
+type FormState = {
+  ok: boolean;
+  errors?: Record<string, string>;
+  values?: Record<string, string>;
+  formError?: string;
 };
 
 function formatPhone(value: string) {
@@ -25,13 +28,14 @@ function slugify(value: string) {
     .replace(/-{2,}/g, "-");
 }
 
-export async function registerArtist(prevState: ArtistRegisterState | undefined, formData: FormData) {
+export async function registerArtist(prevState: FormState | undefined, formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
   const contactName = String(formData.get("contactName") ?? "").trim();
-  const contactPhone = formatPhone(String(formData.get("contactPhone") ?? ""));
+  const rawContactPhone = String(formData.get("contactPhone") ?? "");
+  const contactPhone = formatPhone(rawContactPhone);
   const zipCode = String(formData.get("zipCode") ?? "").trim();
   const bio = String(formData.get("bio") ?? "").trim();
   const website = String(formData.get("website") ?? "").trim();
@@ -43,19 +47,54 @@ export async function registerArtist(prevState: ArtistRegisterState | undefined,
     youtube: String(formData.get("youtube") ?? "").trim(),
     tiktok: String(formData.get("tiktok") ?? "").trim(),
   };
-  const genreIds = Array.from(new Set(formData.getAll("genres").map((value) => String(value)))).filter((value) => Boolean(value));
+  const genreIds = Array.from(new Set(formData.getAll("genres").map((value) => String(value)))).filter((value) =>
+    Boolean(value),
+  );
   let profileImageUrl: string | null = null;
 
-  if (!name || !email || !password || !contactName || !contactPhone) {
-    return { error: "Please complete all required fields." } satisfies ArtistRegisterState;
+  const values: Record<string, string> = {
+    name,
+    email,
+    contactName,
+    contactPhone: rawContactPhone,
+    zipCode,
+    bio,
+    website,
+    tipUrl,
+    facebook: socialLinksInput.facebook,
+    instagram: socialLinksInput.instagram,
+    youtube: socialLinksInput.youtube,
+    tiktok: socialLinksInput.tiktok,
+    genres: genreIds.join(","),
+  };
+
+  const errors: Record<string, string> = {};
+
+  if (!name) {
+    errors.name = "Please enter your artist or band name.";
+  }
+  if (!email) {
+    errors.email = "Contact email is required.";
+  }
+  if (!password) {
+    errors.password = "Create a password.";
+  } else if (password.length < 8) {
+    errors.password = "Password must be at least 8 characters.";
+  }
+  if (!confirmPassword) {
+    errors.confirmPassword = "Confirm your password.";
+  } else if (password && password !== confirmPassword) {
+    errors.confirmPassword = "Passwords do not match.";
+  }
+  if (!contactName) {
+    errors.contactName = "Booking contact name is required.";
+  }
+  if (!rawContactPhone) {
+    errors.contactPhone = "Booking phone is required.";
   }
 
-  if (password.length < 8) {
-    return { error: "Password must be at least 8 characters long." } satisfies ArtistRegisterState;
-  }
-
-  if (password !== confirmPassword) {
-    return { error: "Passwords do not match." } satisfies ArtistRegisterState;
+  if (Object.keys(errors).length) {
+    return { ok: false, errors, values };
   }
 
   if (profileImageFile && profileImageFile.size > 0) {
@@ -75,7 +114,7 @@ export async function registerArtist(prevState: ArtistRegisterState | undefined,
 
     if (uploadResult.error) {
       console.error("Artist image upload failed", uploadResult.error);
-      return { error: "Image upload failed. Please try again." } satisfies ArtistRegisterState;
+      return { ok: false, errors, values, formError: "Image upload failed. Please try again." };
     }
 
     const { data: publicUrlData } = supabaseServerClient.storage.from("artist-profile-images").getPublicUrl(fileName);
@@ -84,7 +123,8 @@ export async function registerArtist(prevState: ArtistRegisterState | undefined,
 
   const existingUser = await prisma.user.findUnique({ where: { email } });
   if (existingUser) {
-    return { error: "An account with this email already exists." } satisfies ArtistRegisterState;
+    errors.email = "An account with this email already exists.";
+    return { ok: false, errors, values };
   }
 
   const passwordHash = await hashPassword(password);
@@ -128,7 +168,7 @@ export async function registerArtist(prevState: ArtistRegisterState | undefined,
 
   const session = (await signIn("credentials", { email, password })) as AppSession;
   redirect("/artist/dashboard");
-  return session;
+  return { ok: true, errors: {}, values: {} };
 }
 
-export type { ArtistRegisterState };
+export type { FormState };

@@ -1,11 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import { useFormStatus } from "react-dom";
 import { registerVenue } from "./actions";
-import type { VenueRegisterState } from "./actions";
+import type { FormState } from "./actions";
 
-const initialState: VenueRegisterState = {};
+const initialState: FormState = { ok: false, errors: {}, values: {} };
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -23,8 +23,42 @@ function SubmitButton() {
 export function VenueRegisterForm() {
   const [state, formAction] = useActionState(registerVenue, initialState);
 
+  const fieldClass = (field: string) =>
+    `w-full rounded-xl border px-4 py-2 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 ${
+      state.errors?.[field]
+        ? "border-rose-500 focus:border-rose-500 focus:ring-rose-200"
+        : "border-slate-300 focus:border-slate-500 focus:ring-slate-200"
+    }`;
+
+  const textareaClass = (field: string) =>
+    `w-full rounded-xl border px-4 py-2 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 ${
+      state.errors?.[field]
+        ? "border-rose-500 focus:border-rose-500 focus:ring-rose-200"
+        : "border-slate-300 focus:border-slate-500 focus:ring-slate-200"
+    }`;
+
+  useEffect(() => {
+    if (!state.errors || Object.keys(state.errors).length === 0) {
+      return;
+    }
+
+    const firstErrorField = Object.keys(state.errors)[0];
+    const el = document.getElementById(firstErrorField);
+    if (!el) return;
+
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => {
+      if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+        el.focus({ preventScroll: true });
+      }
+    }, 200);
+  }, [state.errors]);
+
   return (
     <form action={formAction} encType="multipart/form-data" className="space-y-6">
+      {state.formError ? (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{state.formError}</div>
+      ) : null}
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-2">
           <label htmlFor="name" className="block text-sm font-medium text-slate-700">
@@ -35,8 +69,10 @@ export function VenueRegisterForm() {
             name="name"
             autoComplete="organization"
             required
-            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            defaultValue={state.values?.name ?? ""}
+            className={fieldClass("name")}
           />
+          {state.errors?.name ? <p className="text-xs text-rose-600">{state.errors.name}</p> : null}
         </div>
         <div className="space-y-2">
           <label htmlFor="email" className="block text-sm font-medium text-slate-700">
@@ -48,8 +84,10 @@ export function VenueRegisterForm() {
             type="email"
             autoComplete="email"
             required
-            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            defaultValue={state.values?.email ?? ""}
+            className={fieldClass("email")}
           />
+          {state.errors?.email ? <p className="text-xs text-rose-600">{state.errors.email}</p> : null}
         </div>
       </div>
       <div className="grid gap-6 md:grid-cols-2">
@@ -63,8 +101,9 @@ export function VenueRegisterForm() {
             type="password"
             autoComplete="new-password"
             required
-            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            className={fieldClass("password")}
           />
+          {state.errors?.password ? <p className="text-xs text-rose-600">{state.errors.password}</p> : null}
         </div>
         <div className="space-y-2">
           <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-700">
@@ -76,8 +115,11 @@ export function VenueRegisterForm() {
             type="password"
             autoComplete="new-password"
             required
-            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            className={fieldClass("confirmPassword")}
           />
+          {state.errors?.confirmPassword ? (
+            <p className="text-xs text-rose-600">{state.errors.confirmPassword}</p>
+          ) : null}
         </div>
       </div>
       <div className="grid gap-6 md:grid-cols-2">
@@ -90,8 +132,10 @@ export function VenueRegisterForm() {
             name="contactName"
             autoComplete="name"
             required
-            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            defaultValue={state.values?.contactName ?? ""}
+            className={fieldClass("contactName")}
           />
+          {state.errors?.contactName ? <p className="text-xs text-rose-600">{state.errors.contactName}</p> : null}
         </div>
         <div className="space-y-2">
           <label htmlFor="contactPhone" className="block text-sm font-medium text-slate-700">
@@ -103,8 +147,10 @@ export function VenueRegisterForm() {
             type="tel"
             autoComplete="tel"
             required
-            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            defaultValue={state.values?.contactPhone ?? ""}
+            className={fieldClass("contactPhone")}
           />
+          {state.errors?.contactPhone ? <p className="text-xs text-rose-600">{state.errors.contactPhone}</p> : null}
         </div>
       </div>
       <div className="grid gap-6 md:grid-cols-2">
@@ -117,8 +163,10 @@ export function VenueRegisterForm() {
             name="venuePhone"
             type="tel"
             autoComplete="tel"
-            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            defaultValue={state.values?.venuePhone ?? ""}
+            className={fieldClass("venuePhone")}
           />
+          {state.errors?.venuePhone ? <p className="text-xs text-rose-600">{state.errors.venuePhone}</p> : null}
         </div>
         <div className="space-y-2">
           <label htmlFor="website" className="block text-sm font-medium text-slate-700">
@@ -129,8 +177,10 @@ export function VenueRegisterForm() {
             name="website"
             type="url"
             autoComplete="url"
-            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            defaultValue={state.values?.website ?? ""}
+            className={fieldClass("website")}
           />
+          {state.errors?.website ? <p className="text-xs text-rose-600">{state.errors.website}</p> : null}
         </div>
       </div>
       <div className="grid gap-6 md:grid-cols-2">
@@ -154,8 +204,10 @@ export function VenueRegisterForm() {
             id="description"
             name="description"
             rows={3}
-            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            defaultValue={state.values?.description ?? ""}
+            className={textareaClass("description")}
           />
+          {state.errors?.description ? <p className="text-xs text-rose-600">{state.errors.description}</p> : null}
         </div>
       </div>
       <div className="grid gap-6 md:grid-cols-2">
@@ -168,8 +220,10 @@ export function VenueRegisterForm() {
             name="address"
             autoComplete="street-address"
             required
-            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            defaultValue={state.values?.address ?? ""}
+            className={fieldClass("address")}
           />
+          {state.errors?.address ? <p className="text-xs text-rose-600">{state.errors.address}</p> : null}
         </div>
         <div className="space-y-2">
           <label htmlFor="city" className="block text-sm font-medium text-slate-700">
@@ -180,8 +234,10 @@ export function VenueRegisterForm() {
             name="city"
             autoComplete="address-level2"
             required
-            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            defaultValue={state.values?.city ?? ""}
+            className={fieldClass("city")}
           />
+          {state.errors?.city ? <p className="text-xs text-rose-600">{state.errors.city}</p> : null}
         </div>
       </div>
       <div className="grid gap-6 md:grid-cols-3">
@@ -195,8 +251,10 @@ export function VenueRegisterForm() {
             maxLength={2}
             autoComplete="address-level1"
             required
-            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm uppercase tracking-[0.2em] text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            defaultValue={state.values?.state ?? ""}
+            className={`${fieldClass("state")} uppercase tracking-[0.2em]`}
           />
+          {state.errors?.state ? <p className="text-xs text-rose-600">{state.errors.state}</p> : null}
         </div>
         <div className="space-y-2">
           <label htmlFor="zipCode" className="block text-sm font-medium text-slate-700">
@@ -207,8 +265,10 @@ export function VenueRegisterForm() {
             name="zipCode"
             autoComplete="postal-code"
             required
-            className="w-full rounded-xl border border-slate-300 px-4 py-2 text-sm text-slate-900 shadow-sm focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
+            defaultValue={state.values?.zipCode ?? ""}
+            className={fieldClass("zipCode")}
           />
+          {state.errors?.zipCode ? <p className="text-xs text-rose-600">{state.errors.zipCode}</p> : null}
         </div>
         <div className="space-y-2">
           <span className="block text-sm font-medium text-slate-700">Allows smoking</span>
@@ -217,13 +277,13 @@ export function VenueRegisterForm() {
               type="checkbox"
               id="allowsSmoking"
               name="allowsSmoking"
+              defaultChecked={state.values?.allowsSmoking === "on"}
               className="h-5 w-5 rounded border-slate-400 text-slate-900 accent-slate-900 focus:ring-slate-500"
             />
             <span>Check if guests are allowed to smoke inside the venue.</span>
           </label>
         </div>
       </div>
-      {state?.error ? <p className="text-sm font-medium text-rose-600">{state.error}</p> : null}
       <SubmitButton />
     </form>
   );

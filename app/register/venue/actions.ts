@@ -10,8 +10,11 @@ import { redirect } from "next/navigation";
 import { geocodeAddress } from "@/lib/geocoding";
 import { supabaseServerClient } from "@/lib/supabaseServer";
 
-type VenueRegisterState = {
-  error?: string;
+type FormState = {
+  ok: boolean;
+  errors?: Record<string, string>;
+  values?: Record<string, string>;
+  formError?: string;
 };
 
 function formatPhone(value: string) {
@@ -26,14 +29,16 @@ function slugify(value: string) {
     .replace(/-{2,}/g, "-");
 }
 
-export async function registerVenue(prevState: VenueRegisterState | undefined, formData: FormData) {
+export async function registerVenue(prevState: FormState | undefined, formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   const confirmPassword = String(formData.get("confirmPassword") ?? "");
   const contactName = String(formData.get("contactName") ?? "").trim();
-  const contactPhone = formatPhone(String(formData.get("contactPhone") ?? ""));
-  const venuePhone = formatPhone(String(formData.get("venuePhone") ?? ""));
+  const rawContactPhone = String(formData.get("contactPhone") ?? "");
+  const contactPhone = formatPhone(rawContactPhone);
+  const rawVenuePhone = String(formData.get("venuePhone") ?? "");
+  const venuePhone = formatPhone(rawVenuePhone);
   const website = String(formData.get("website") ?? "").trim();
   const profileImageFile = formData.get("profileImage") as File | null;
   const allowsSmoking = formData.get("allowsSmoking") === "on";
@@ -41,19 +46,63 @@ export async function registerVenue(prevState: VenueRegisterState | undefined, f
   const city = String(formData.get("city") ?? "").trim();
   const state = String(formData.get("state") ?? "").trim().toUpperCase();
   const zipCode = String(formData.get("zipCode") ?? "").trim();
-  const description = String(formData.get("description") ?? "").trim() || null;
+  const description = String(formData.get("description") ?? "").trim();
   let profileImageUrl: string | null = null;
 
-  if (!name || !email || !password || !contactName || !contactPhone || !address || !city || !state || !zipCode) {
-    return { error: "Please complete all required fields." } satisfies VenueRegisterState;
+  const values: Record<string, string> = {
+    name,
+    email,
+    contactName,
+    contactPhone: rawContactPhone,
+    venuePhone: rawVenuePhone,
+    website,
+    address,
+    city,
+    state,
+    zipCode,
+    description,
+    allowsSmoking: allowsSmoking ? "on" : "",
+  };
+
+  const errors: Record<string, string> = {};
+
+  if (!name) {
+    errors.name = "Please enter your venue name.";
+  }
+  if (!email) {
+    errors.email = "Contact email is required.";
+  }
+  if (!password) {
+    errors.password = "Create a password.";
+  } else if (password.length < 8) {
+    errors.password = "Password must be at least 8 characters.";
+  }
+  if (!confirmPassword) {
+    errors.confirmPassword = "Confirm your password.";
+  } else if (password && password !== confirmPassword) {
+    errors.confirmPassword = "Passwords do not match.";
+  }
+  if (!contactName) {
+    errors.contactName = "Booking contact name is required.";
+  }
+  if (!rawContactPhone) {
+    errors.contactPhone = "Booking phone is required.";
+  }
+  if (!address) {
+    errors.address = "Street address is required.";
+  }
+  if (!city) {
+    errors.city = "City is required.";
+  }
+  if (!state) {
+    errors.state = "State is required.";
+  }
+  if (!zipCode) {
+    errors.zipCode = "Zip code is required.";
   }
 
-  if (password.length < 8) {
-    return { error: "Password must be at least 8 characters long." } satisfies VenueRegisterState;
-  }
-
-  if (password !== confirmPassword) {
-    return { error: "Passwords do not match." } satisfies VenueRegisterState;
+  if (Object.keys(errors).length) {
+    return { ok: false, errors, values };
   }
 
   if (profileImageFile && profileImageFile.size > 0) {
@@ -73,7 +122,7 @@ export async function registerVenue(prevState: VenueRegisterState | undefined, f
 
     if (uploadResult.error) {
       console.error("Venue image upload failed", uploadResult.error);
-      return { error: "Image upload failed. Please try again." } satisfies VenueRegisterState;
+      return { ok: false, errors, values, formError: "Image upload failed. Please try again." };
     }
 
     const { data: publicUrlData } = supabaseServerClient.storage.from("venue-profile-images").getPublicUrl(fileName);
@@ -82,12 +131,17 @@ export async function registerVenue(prevState: VenueRegisterState | undefined, f
 
   const existingUser = await prisma.user.findUnique({ where: { email } });
   if (existingUser) {
-    return { error: "An account with this email already exists." } satisfies VenueRegisterState;
+    errors.email = "An account with this email already exists.";
+    return { ok: false, errors, values };
   }
 
   const coordinates = await geocodeAddress(address, city, state, zipCode);
   if (!coordinates) {
-    return { error: "We couldn't verify that address. Please confirm it and try again." } satisfies VenueRegisterState;
+    return {
+      ok: false,
+      errors: { ...errors, address: "We couldn't verify that address. Please confirm it." },
+      values,
+    };
   }
 
   const passwordHash = await hashPassword(password);
@@ -110,7 +164,7 @@ export async function registerVenue(prevState: VenueRegisterState | undefined, f
         zipCode,
         latitude,
         longitude,
-        description,
+        description: description || null,
       },
     });
 
@@ -127,7 +181,7 @@ export async function registerVenue(prevState: VenueRegisterState | undefined, f
 
   const session = (await signIn("credentials", { email, password })) as AppSession;
   redirect("/venue/dashboard");
-  return session;
+  return { ok: true, errors: {}, values: {} };
 }
 
-export type { VenueRegisterState };
+export type { FormState };
