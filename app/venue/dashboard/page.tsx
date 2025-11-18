@@ -15,7 +15,31 @@ function redirectForRole(role: "admin" | "artist" | "venue") {
 function formatDate(date: Date, time: Date | null) {
   const dateFormatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
   const timeFormatter = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
-  return `${dateFormatter.format(date)} · ${time ? timeFormatter.format(time) : "TBD"}`;
+  return `${dateFormatter.format(date)} • ${time ? timeFormatter.format(time) : "TBD"}`;
+}
+
+function formatUsPhone(phone: string) {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  }
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+  return phone;
+}
+
+function VenueProfileMissing() {
+  return (
+    <div className="mx-auto w-full max-w-3xl px-6 py-12">
+      <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
+        <h1 className="text-2xl font-semibold text-slate-900">Venue profile missing</h1>
+        <p className="mt-3 text-sm text-slate-600">
+          We couldn't find your venue profile. Contact support so we can help reconnect your account.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export default async function VenueDashboardPage() {
@@ -30,16 +54,7 @@ export default async function VenueDashboardPage() {
   }
 
   if (!session.user.venueId) {
-    return (
-      <div className="mx-auto w-full max-w-3xl px-6 py-12">
-        <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-          <h1 className="text-2xl font-semibold text-slate-900">Venue profile missing</h1>
-          <p className="mt-3 text-sm text-slate-600">
-            We couldn&rsquo;t find your venue profile. Contact support so we can help reconnect your account.
-          </p>
-        </div>
-      </div>
-    );
+    return <VenueProfileMissing />;
   }
 
   const venue = await prisma.venue.findUnique({
@@ -51,7 +66,16 @@ export default async function VenueDashboardPage() {
         take: 5,
         include: {
           artist: {
-            select: { name: true },
+            select: {
+              name: true,
+              genres: {
+                select: {
+                  genre: {
+                    select: { name: true },
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -59,66 +83,85 @@ export default async function VenueDashboardPage() {
   });
 
   if (!venue) {
-    return (
-      <div className="mx-auto w-full max-w-3xl px-6 py-12">
-        <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-          <h1 className="text-2xl font-semibold text-slate-900">Venue profile missing</h1>
-          <p className="mt-3 text-sm text-slate-600">
-            We couldn&rsquo;t find your venue profile. Contact support so we can help reconnect your account.
-          </p>
-        </div>
-      </div>
-    );
+    return <VenueProfileMissing />;
   }
 
+  const formattedPhone = venue.phone ? formatUsPhone(venue.phone) : null;
+
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-12">
-      <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="flex flex-col gap-4">
-          {venue.profileImageUrl ? (
-            <img src={venue.profileImageUrl} alt={venue.name} className="h-48 w-full rounded-2xl object-cover" />
-          ) : null}
-          <p className="text-sm uppercase tracking-wide text-slate-500">Venue dashboard</p>
-          <h1 className="text-3xl font-semibold text-slate-900">{venue.name}</h1>
-          {venue.description ? <p className="text-sm text-slate-600">{venue.description}</p> : null}
-          <div className="flex flex-col gap-2 text-sm text-slate-600 md:flex-row md:flex-wrap md:items-center md:gap-6">
-            <span>
-              {venue.address}, {venue.city}, {venue.state} {venue.zipCode}
-            </span>
-            <span>Contact: {venue.contactName}</span>
-            <span>{venue.contactEmail}</span>
-            {venue.contactPhone ? <span>{venue.contactPhone}</span> : null}
+    <div className="mx-auto w-full max-w-5xl px-6 py-12">
+      <div className="grid gap-8 lg:grid-cols-[minmax(260px,340px),1fr]">
+        <section className="space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="space-y-3">
+            {venue.profileImageUrl ? (
+              <div className="flex justify-center">
+                <img
+                  src={venue.profileImageUrl}
+                  alt={venue.name}
+                  className="max-h-64 w-auto max-w-full object-contain"
+                />
+              </div>
+            ) : null}
+            <div className="space-y-1">
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Venue</p>
+              <h1 className="text-3xl font-semibold text-slate-900">{venue.name}</h1>
+            </div>
           </div>
-        </div>
+          <div className="space-y-1 text-sm text-slate-600">
+            <p className="font-semibold text-slate-900">{venue.name}</p>
+            <p>{venue.address}</p>
+            <p>
+              {venue.city}, {venue.state} {venue.zipCode}
+            </p>
+          </div>
+          {formattedPhone ? (
+            <p className="text-sm text-slate-600">
+              Phone: <span className="font-semibold text-slate-900">{formattedPhone}</span>
+            </p>
+          ) : null}
+          {venue.website ? (
+            <a
+              href={venue.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-semibold text-slate-900 underline underline-offset-4 hover:text-slate-700"
+            >
+              {`${venue.name}'s website`}
+            </a>
+          ) : null}
+          {venue.description ? (
+            <p className="text-sm text-slate-600 leading-relaxed">{venue.description}</p>
+          ) : null}
+        </section>
+
+        <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-900">Upcoming Events</h2>
+          {venue.events.length === 0 ? (
+            <p className="text-sm text-slate-600">No events scheduled yet.</p>
+          ) : (
+            <ul className="space-y-4">
+              {venue.events.map((event) => {
+                const artistName = event.artist?.name ?? event.artistText ?? "Artist to be announced";
+                const genreSummary =
+                  event.artist?.genres && event.artist.genres.length > 0
+                    ? event.artist.genres.map((artistGenre) => artistGenre.genre.name).join(", ")
+                    : "Genres TBA";
+
+                return (
+                  <li key={event.id} className="rounded-2xl border border-slate-200 p-4">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm font-semibold text-slate-900">{event.title ?? "Untitled event"}</p>
+                      <p className="text-xs text-slate-500">{formatDate(event.eventDate, event.eventTime)}</p>
+                    </div>
+                    <p className="mt-2 text-sm font-medium text-slate-900">{artistName}</p>
+                    <p className="text-xs uppercase tracking-wide text-slate-500">{genreSummary}</p>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
       </div>
-      <section className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Upcoming events</h2>
-          <ul className="mt-4 space-y-3 text-sm text-slate-600">
-            {venue.events.length === 0 ? (
-              <li>No events scheduled yet.</li>
-            ) : (
-              venue.events.map((event) => (
-                <li key={event.id} className="rounded-2xl border border-slate-200 p-4">
-                  <p className="text-sm font-semibold text-slate-900">{event.title ?? "Untitled event"}</p>
-                  <p className="text-xs text-slate-500">{formatDate(event.eventDate, event.eventTime)}</p>
-                  {event.artist ? (
-                    <p className="text-xs text-slate-500">Featuring {event.artist.name}</p>
-                  ) : null}
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Booking checklist</h2>
-          <ul className="mt-4 space-y-3 text-sm text-slate-600">
-            <li>Keep event details updated at least two weeks before showtime.</li>
-            <li>Confirm tech requirements with artists after booking.</li>
-            <li>Share social graphics with artists to boost promotion.</li>
-          </ul>
-        </div>
-      </section>
     </div>
   );
 }
