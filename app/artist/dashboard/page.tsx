@@ -19,6 +19,13 @@ function formatDate(date: Date, time: Date | null) {
   return `${dateFormatter.format(date)} • ${time ? timeFormatter.format(time) : "TBD"}`;
 }
 
+function titleCase(value: string) {
+  return value
+    .split(/[\s-_]+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 function ArtistMissingProfile() {
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-12">
@@ -59,7 +66,7 @@ export default async function ArtistDashboardPage() {
           take: 5,
           include: {
             venue: {
-              select: { name: true, city: true, state: true, profileImageUrl: true },
+              select: { name: true, city: true, state: true },
             },
           },
         },
@@ -77,46 +84,81 @@ export default async function ArtistDashboardPage() {
     return <ArtistMissingProfile />;
   }
 
+  const socialLinks = artist.socialLinks as Record<string, string> | null;
+  const socialLinkEntries = socialLinks
+    ? Object.entries(socialLinks).filter(([, value]) => typeof value === "string" && value.trim().length > 0)
+    : [];
+
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-12">
-      <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="flex flex-col gap-4">
-          {artist.profileImageUrl ? (
-            <div className="flex justify-center">
-              <img
-                src={artist.profileImageUrl}
-                alt={artist.name}
-                className="max-h-64 w-auto max-w-full rounded-2xl object-contain"
-              />
+    <div className="mx-auto w-full max-w-5xl px-6 py-12">
+      <div className="grid gap-8 lg:grid-cols-[minmax(260px,340px),1fr]">
+        <section className="space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="space-y-4">
+            {artist.profileImageUrl ? (
+              <div className="flex justify-center">
+                <img
+                  src={artist.profileImageUrl}
+                  alt={artist.name}
+                  className="mx-auto mb-2 h-auto max-h-72 w-auto max-w-full rounded-xl object-contain"
+                />
+              </div>
+            ) : null}
+            <div className="space-y-2 text-center lg:text-left">
+              <h1 className="text-3xl font-semibold text-slate-900">{artist.name}</h1>
+              {artist.website ? (
+                <a
+                  href={artist.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-semibold text-slate-900 underline underline-offset-4 hover:text-slate-600"
+                >
+                  {`${artist.name}’s website`}
+                </a>
+              ) : null}
+              {artist.tipUrl ? (
+                <div>
+                  <a
+                    href={artist.tipUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-semibold text-slate-900 underline underline-offset-4 hover:text-slate-600"
+                  >
+                    Tip Jar
+                  </a>
+                </div>
+              ) : null}
             </div>
-          ) : null}
-          <p className="text-sm uppercase tracking-wide text-slate-500">Artist dashboard</p>
-          <h1 className="text-3xl font-semibold text-slate-900">{artist.name}</h1>
-          {artist.bio ? <p className="text-sm text-slate-600">{artist.bio}</p> : null}
-          <div className="flex flex-col gap-2 text-sm text-slate-600 md:flex-row md:items-center md:gap-6">
-            {artist.zipCode ? <span>Based in {artist.zipCode}</span> : null}
-            <span>Contact: {artist.contactName}</span>
-            <span>{artist.contactEmail}</span>
-            <span>{artist.contactPhone}</span>
+            {socialLinkEntries.length > 0 ? (
+              <div className="flex flex-wrap gap-3 text-sm text-slate-700">
+                {socialLinkEntries.map(([platform, link]) => (
+                  <a
+                    key={platform}
+                    href={link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-full border border-slate-200 px-3 py-1 font-medium text-slate-900 hover:border-slate-400"
+                  >
+                    {titleCase(platform)}
+                  </a>
+                ))}
+              </div>
+            ) : null}
           </div>
-        </div>
-      </div>
-      <section className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          {artist.bio ? (
+            <p className="text-sm text-slate-600 leading-relaxed">{artist.bio}</p>
+          ) : (
+            <p className="text-sm text-slate-500">Add a bio to let venues know what makes your sound unique.</p>
+          )}
+        </section>
+
+        <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">Upcoming events</h2>
-          <ul className="mt-4 space-y-3 text-sm text-slate-600">
+          <ul className="space-y-3 text-sm text-slate-600">
             {artist.events.length === 0 ? (
               <li>No events scheduled yet.</li>
             ) : (
               artist.events.map((event) => (
                 <li key={event.id} className="rounded-2xl border border-slate-200 p-4">
-                  {event.venue.profileImageUrl ? (
-                    <img
-                      src={event.venue.profileImageUrl}
-                      alt={event.venue.name}
-                      className="mb-3 h-32 w-full rounded-2xl object-cover"
-                    />
-                  ) : null}
                   <p className="text-sm font-semibold text-slate-900">{event.title ?? "Untitled event"}</p>
                   <p className="text-xs text-slate-500">{formatDate(event.eventDate, event.eventTime)}</p>
                   <p className="text-xs text-slate-500">
@@ -126,16 +168,8 @@ export default async function ArtistDashboardPage() {
               ))
             )}
           </ul>
-        </div>
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">Quick actions</h2>
-          <ul className="mt-4 space-y-3 text-sm text-slate-600">
-            <li>Share your updated bio and social links to attract venue bookers.</li>
-            <li>Reach out to venues in your area using the contact list in your inbox.</li>
-            <li>Coordinate promotion with venues two weeks before each show.</li>
-          </ul>
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
   );
 }
