@@ -15,7 +15,7 @@ function roleRedirect(role: "admin" | "artist" | "venue") {
 function formatDateTime(date: Date, time: Date | null) {
   const dateFormatter = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
   const timeFormatter = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
-  return `${dateFormatter.format(date)} · ${time ? timeFormatter.format(time) : "TBD"}`;
+  return `${dateFormatter.format(date)} • ${time ? timeFormatter.format(time) : "TBD"}`;
 }
 
 export default async function AdminDashboardPage() {
@@ -47,7 +47,7 @@ export default async function AdminDashboardPage() {
           select: { name: true, city: true, state: true, profileImageUrl: true },
         },
         artist: {
-          select: { name: true },
+          select: { name: true, profileImageUrl: true },
         },
       },
     }),
@@ -111,12 +111,19 @@ export default async function AdminDashboardPage() {
                       className="mb-3 h-32 w-full rounded-2xl object-cover"
                     />
                   ) : null}
+                  {event.artist?.profileImageUrl ? (
+                    <div className="mb-3 flex justify-center">
+                      <img
+                        src={event.artist.profileImageUrl}
+                        alt={event.artist.name}
+                        className="max-h-40 w-auto max-w-full rounded-2xl object-contain"
+                      />
+                    </div>
+                  ) : null}
                   <p className="text-sm font-semibold text-slate-900">{event.title ?? "Untitled event"}</p>
+                  <p className="text-xs text-slate-500">{formatDateTime(event.eventDate, event.eventTime)}</p>
                   <p className="text-xs text-slate-500">
-                    {formatDateTime(event.eventDate, event.eventTime)}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {event.venue.name} · {event.venue.city}, {event.venue.state}
+                    {event.venue.name} • {event.venue.city}, {event.venue.state}
                   </p>
                   {event.artist ? (
                     <p className="text-xs text-slate-500">Featuring {event.artist.name}</p>

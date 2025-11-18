@@ -188,6 +188,15 @@ export default async function EventsPage({ searchParams }: EventsPageProps) {
                   className="mb-4 h-40 w-full rounded-2xl object-cover"
                 />
               ) : null}
+              {event.artist?.profileImageUrl ? (
+                <div className="mb-4 flex justify-center">
+                  <img
+                    src={event.artist.profileImageUrl}
+                    alt={event.artist.name}
+                    className="max-h-48 w-auto max-w-full rounded-2xl object-contain"
+                  />
+                </div>
+              ) : null}
               <h2 className="text-xl font-semibold text-slate-900">{event.title ?? "Untitled event"}</h2>
               <p className="mt-1 text-sm text-slate-600">{event.description ?? "No description yet."}</p>
               <p className="mt-3 text-sm font-medium text-slate-900">{formatDateTime(event.eventDate, event.eventTime)}</p>

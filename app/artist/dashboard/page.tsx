@@ -80,7 +80,16 @@ export default async function ArtistDashboardPage() {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-10 px-6 py-12">
       <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm">
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-4">
+          {artist.profileImageUrl ? (
+            <div className="flex justify-center">
+              <img
+                src={artist.profileImageUrl}
+                alt={artist.name}
+                className="max-h-64 w-auto max-w-full rounded-2xl object-contain"
+              />
+            </div>
+          ) : null}
           <p className="text-sm uppercase tracking-wide text-slate-500">Artist dashboard</p>
           <h1 className="text-3xl font-semibold text-slate-900">{artist.name}</h1>
           {artist.bio ? <p className="text-sm text-slate-600">{artist.bio}</p> : null}

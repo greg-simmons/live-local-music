@@ -1,10 +1,13 @@
 "use server";
 
+import { Buffer } from "node:buffer";
+
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/password";
 import { signIn } from "@/lib/auth";
 import type { AppSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { supabaseServerClient } from "@/lib/supabaseServer";
 
 type ArtistRegisterState = {
   error?: string;
@@ -12,6 +15,14 @@ type ArtistRegisterState = {
 
 function formatPhone(value: string) {
   return value.replace(/[^0-9+]/g, "");
+}
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
 }
 
 export async function registerArtist(prevState: ArtistRegisterState | undefined, formData: FormData) {
@@ -25,7 +36,7 @@ export async function registerArtist(prevState: ArtistRegisterState | undefined,
   const bio = String(formData.get("bio") ?? "").trim();
   const website = String(formData.get("website") ?? "").trim();
   const tipUrl = String(formData.get("tipUrl") ?? "").trim();
-  const profileImageUrl = String(formData.get("profileImageUrl") ?? "").trim();
+  const profileImageFile = formData.get("profileImage") as File | null;
   const socialLinksInput = {
     facebook: String(formData.get("facebook") ?? "").trim(),
     instagram: String(formData.get("instagram") ?? "").trim(),
@@ -33,6 +44,7 @@ export async function registerArtist(prevState: ArtistRegisterState | undefined,
     tiktok: String(formData.get("tiktok") ?? "").trim(),
   };
   const genreIds = Array.from(new Set(formData.getAll("genres").map((value) => String(value)))).filter((value) => Boolean(value));
+  let profileImageUrl: string | null = null;
 
   if (!name || !email || !password || !contactName || !contactPhone) {
     return { error: "Please complete all required fields." } satisfies ArtistRegisterState;
@@ -44,6 +56,30 @@ export async function registerArtist(prevState: ArtistRegisterState | undefined,
 
   if (password !== confirmPassword) {
     return { error: "Passwords do not match." } satisfies ArtistRegisterState;
+  }
+
+  if (profileImageFile && profileImageFile.size > 0) {
+    const arrayBuffer = await profileImageFile.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const type = profileImageFile.type || "image/jpeg";
+    const extension = type.split("/")[1] || "jpg";
+    const safeName = slugify(name) || "artist";
+    const fileName = `artists/${Date.now()}-${safeName}.${extension}`;
+
+    const uploadResult = await supabaseServerClient.storage
+      .from("artist-profile-images")
+      .upload(fileName, buffer, {
+        contentType: type,
+        upsert: false,
+      });
+
+    if (uploadResult.error) {
+      console.error("Artist image upload failed", uploadResult.error);
+      return { error: "Image upload failed. Please try again." } satisfies ArtistRegisterState;
+    }
+
+    const { data: publicUrlData } = supabaseServerClient.storage.from("artist-profile-images").getPublicUrl(fileName);
+    profileImageUrl = publicUrlData?.publicUrl ?? null;
   }
 
   const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -66,7 +102,7 @@ export async function registerArtist(prevState: ArtistRegisterState | undefined,
         bio: bio || null,
         website: website || null,
         tipUrl: tipUrl || null,
-        profileImageUrl: profileImageUrl || null,
+        profileImageUrl,
         socialLinks,
         genres:
           genreIds.length > 0
